@@ -1,6 +1,8 @@
 import os
 import requests
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import FunctionTransformer
 from dotenv import load_dotenv
 
 # Load enviornemnt variables
@@ -60,12 +62,39 @@ def get_audio_features(track_ids, access_token):
     """
     Get audio features for a list of track IDs.
     """
-    endpoint = f'https://api.spotify.com/v1/audio-features'
-    params = {
-        'ids': ','.join(track_ids)
-    }
-
+    track_ids = ','.join(track_ids)
+    endpoint = f'https://api.spotify.com/v1/audio-features?ids={track_ids}'
+    
     return get_spotify_data(endpoint, access_token)
+
+
+def clean_audio_features(likedDF, dislikedDF):
+    """
+    Clean the data provided
+    """
+
+    #Create boolean feature; 0: liked, 1: not liked
+    likedDF['isLiked'] = 1
+    dislikedDF['isLiked'] = 0
+
+    #Merge columns and drop second instance of any duplicate, i.e. any duplicates from disliked
+    mergedDF = pd.concat([likedDF, dislikedDF])
+    mergedDF.drop_duplicates(inplace=True)
+
+    # Drop useless, non numeric columns and any resulting rows with null values
+    mergedDF.drop(columns=['type', 'id', 'uri', 'track_href', 'analysis_url'], inplace=True)
+    mergedDF.dropna(inplace=True)
+
+    # TODO: Perform log scaling on duration_ms and min_max on tempo
+
+    mergedDF.info()
+
+    return mergedDF
+
+def logistic_reg():
+    """
+    Train a model to predict whether a song would be liked or not
+    """
 
 
 
@@ -74,28 +103,34 @@ def main():
     token = get_access_token(CLIENT_ID, CLIENT_SECRET)
 
     # Example playlist ID
-    playlist_id = '0zVYBTlgm6tBItMJ9smASQ'
+    liked_playlist_id = '1Y5qoloOrSwRoNEkTCsglp'
+    disliked_playlist_id = '3IVyfenjdTnuqP9OLUqPcR'
 
     # Fetch tracks from the playlist
-    playlist_data = get_playlist_tracks(playlist_id, token)
-    tracks = playlist_data['items']
+    liked_playlist_data = get_playlist_tracks(liked_playlist_id, token)
+    liked_tracks = liked_playlist_data['items']
+
+    disliked_playlist_data = get_playlist_tracks(disliked_playlist_id, token)
+    disliked_tracks = disliked_playlist_data['items']
 
     # Extract track IDs
-    track_ids = [track['track']['id'] for track in tracks if track['track']]
+    liked_track_ids = [track['track']['id'] for track in liked_tracks if track['track']]
+    disliked_track_ids = [track['track']['id'] for track in disliked_tracks if track['track']]
 
     # Fetch audio features for the tracks
-    audio_features_data = get_audio_features(track_ids, token)
+    liked_features = get_audio_features(liked_track_ids, token)
+    disliked_features = get_audio_features(disliked_track_ids, token)
     
-    #DEBUGGING
-    print(audio_features_data)
+    liked_features = liked_features['audio_features']
+    disliked_features = disliked_features['audio_features']
 
-    audio_features = audio_features_data['audio_features']
 
     # Create a DataFrame from the audio features
-    df = pd.DataFrame(audio_features)
+    likedDF = pd.DataFrame(liked_features)
+    dislikedDF = pd.DataFrame(disliked_features)
 
-    # Save the DataFrame to a CSV file
-    df.to_csv('spotify_audio_features.csv', index=False)
+    df = clean_audio_features(likedDF, dislikedDF)
+    print(df)
 
     print("Data exported to spotify_audio_features.csv")
 
