@@ -3,6 +3,8 @@ import requests
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import FunctionTransformer
+import seaborn as sns
+import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 
 # Load enviornemnt variables
@@ -86,8 +88,9 @@ def clean_audio_features(likedDF, dislikedDF):
     mergedDF.dropna(inplace=True)
 
     # TODO: Perform log scaling on duration_ms and min_max on tempo
-
-    mergedDF.info()
+    # Convert duration_ms to minutes
+    mergedDF['duration_ms'] = mergedDF['duration_ms'] / 1000 / 60
+    mergedDF.rename(columns={'duration_ms': 'minutes'}, inplace=True)
 
     return mergedDF
 
@@ -103,8 +106,8 @@ def main():
     token = get_access_token(CLIENT_ID, CLIENT_SECRET)
 
     # Example playlist ID
-    liked_playlist_id = '1Y5qoloOrSwRoNEkTCsglp'
-    disliked_playlist_id = '3IVyfenjdTnuqP9OLUqPcR'
+    liked_playlist_id = '6kBzzBza7wIPtOykytjABq'
+    disliked_playlist_id = '3caseqKMvJyv2XE1rN6SQi'
 
     # Fetch tracks from the playlist
     liked_playlist_data = get_playlist_tracks(liked_playlist_id, token)
@@ -112,6 +115,8 @@ def main():
 
     disliked_playlist_data = get_playlist_tracks(disliked_playlist_id, token)
     disliked_tracks = disliked_playlist_data['items']
+
+    print(liked_tracks)
 
     # Extract track IDs
     liked_track_ids = [track['track']['id'] for track in liked_tracks if track['track']]
@@ -130,9 +135,11 @@ def main():
     dislikedDF = pd.DataFrame(disliked_features)
 
     df = clean_audio_features(likedDF, dislikedDF)
-    print(df)
 
+    df.to_csv('spotify_audio_features.csv')
     print("Data exported to spotify_audio_features.csv")
+    
+    plt.show()
 
 if __name__ == "__main__":
     main()
