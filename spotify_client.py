@@ -44,19 +44,34 @@ def get_spotify_data(endpoint, access_token):
     }
     response = requests.get(endpoint, headers=headers)
 
+    # If unsucessful print status code, content, and raise exception
     if response.status_code != 200:
+        print(f"Request to {endpoint} failed with status code {response.status_code}")
+        print(f"Response content: {response.text}")
         raise Exception("Could not fetch data from Spotify API")
     
     return response.json()
 
 
 
-def get_playlist_tracks(playlist_id, access_token):
+def get_playlist_track_ids(playlist_id, access_token):
     """
-    Get tracks from a Spotify playlist.
+    Get tracks from a Spotify playlist id.
     """
+
     endpoint = f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks'
-    return get_spotify_data(endpoint, access_token)
+
+    results = get_spotify_data(endpoint, access_token)
+
+    # Iterate through data for each 100 songs until there is no more next song
+    tracks = results['items']
+    while results['next']:
+        results = get_spotify_data(results['next'], access_token)
+        tracks.extend(results['items'])
+
+    # Extract ids
+    track_ids = [track['track']['id'] for track in tracks if track['track'] and track['track']['id']]
+    return track_ids
 
 
 
@@ -64,15 +79,32 @@ def get_audio_features(track_ids, access_token):
     """
     Get audio features for a list of track IDs.
     """
-    track_ids = ','.join(track_ids)
-    endpoint = f'https://api.spotify.com/v1/audio-features?ids={track_ids}'
+    # Spotify limits request to a size of 100
+    MAX_BATCH = 100
+
+    # Iterate through batches of 100 and make seperate requests
+    audio_features = []
+    for i in range(0, len(track_ids), MAX_BATCH):
+        batch = track_ids[i:i+MAX_BATCH]
+        ids = ','.join(batch)
+        endpoint = f'https://api.spotify.com/v1/audio-features?ids={ids}'
+        response = get_spotify_data(endpoint, access_token)
+        audio_features.extend(response.get('audio_features', []))
+
+    # Remove any songs without audio features available
+    filtered_audio_features = []
+    for obj in audio_features:
+        if obj != None:
+            filtered_audio_features.append(obj)
     
-    return get_spotify_data(endpoint, access_token)
+    return filtered_audio_features
+
+    
 
 
 def clean_audio_features(likedDF, dislikedDF):
     """
-    Clean the data provided
+    Clean the dataframes provided and return merged dataframe
     """
 
     #Create boolean feature; 0: liked, 1: not liked
@@ -87,7 +119,6 @@ def clean_audio_features(likedDF, dislikedDF):
     mergedDF.drop(columns=['type', 'id', 'uri', 'track_href', 'analysis_url'], inplace=True)
     mergedDF.dropna(inplace=True)
 
-    # TODO: Perform log scaling on duration_ms and min_max on tempo
     # Convert duration_ms to minutes
     mergedDF['duration_ms'] = mergedDF['duration_ms'] / 1000 / 60
     mergedDF.rename(columns={'duration_ms': 'minutes'}, inplace=True)
@@ -109,37 +140,22 @@ def main():
     liked_playlist_id = '6kBzzBza7wIPtOykytjABq'
     disliked_playlist_id = '3caseqKMvJyv2XE1rN6SQi'
 
-    # Fetch tracks from the playlist
-    liked_playlist_data = get_playlist_tracks(liked_playlist_id, token)
-    liked_tracks = liked_playlist_data['items']
+    # Get track IDs
+    liked_track_ids = get_playlist_track_ids(liked_playlist_id, token)
+    disliked_track_ids = get_playlist_track_ids(disliked_playlist_id, token)
 
-    disliked_playlist_data = get_playlist_tracks(disliked_playlist_id, token)
-    disliked_tracks = disliked_playlist_data['items']
+    # Get track audio features
+    liked_audio_features = get_audio_features(liked_track_ids, token)
+    disliked_audio_features = get_audio_features(disliked_playlist_id, token)
 
-    print(liked_tracks)
+    #Convert to dataframe
+    likedDF = pd.DataFrame(liked_audio_features)
+    dilikedDF = pd.DataFrame(disliked_audio_features)
+    print(disliked_audio_features)
 
-    # Extract track IDs
-    liked_track_ids = [track['track']['id'] for track in liked_tracks if track['track']]
-    disliked_track_ids = [track['track']['id'] for track in disliked_tracks if track['track']]
-
-    # Fetch audio features for the tracks
-    liked_features = get_audio_features(liked_track_ids, token)
-    disliked_features = get_audio_features(disliked_track_ids, token)
-    
-    liked_features = liked_features['audio_features']
-    disliked_features = disliked_features['audio_features']
+    #TODO clean and merge dataframes
 
 
-    # Create a DataFrame from the audio features
-    likedDF = pd.DataFrame(liked_features)
-    dislikedDF = pd.DataFrame(disliked_features)
-
-    df = clean_audio_features(likedDF, dislikedDF)
-
-    df.to_csv('spotify_audio_features.csv')
-    print("Data exported to spotify_audio_features.csv")
-    
-    plt.show()
 
 if __name__ == "__main__":
     main()
