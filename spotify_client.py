@@ -2,10 +2,13 @@ import os
 import requests
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import FunctionTransformer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, accuracy_score
 import seaborn as sns
 import matplotlib.pyplot as plt
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 from dotenv import load_dotenv
+
 
 # Load enviornemnt variables
 load_dotenv()
@@ -102,7 +105,7 @@ def get_audio_features(track_ids, access_token):
     
 
 
-def clean_audio_features(likedDF, dislikedDF):
+def clean_merge_features(likedDF, dislikedDF):
     """
     Clean the dataframes provided and return merged dataframe
     """
@@ -123,12 +126,24 @@ def clean_audio_features(likedDF, dislikedDF):
     mergedDF['duration_ms'] = mergedDF['duration_ms'] / 1000 / 60
     mergedDF.rename(columns={'duration_ms': 'minutes'}, inplace=True)
 
+    # Drop features with VIF > 5
+    mergedDF.drop(columns=['danceability', 'energy', 'loudness', 'valence', 'tempo', 'minutes', 'time_signature'], inplace=True)
+
     return mergedDF
 
-def logistic_reg():
+
+
+def logistic_reg(df):
     """
     Train a model to predict whether a song would be liked or not
     """
+    X = df.drop('isLiked', axis=1)
+    y = df['isLiked']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    clf = LogisticRegression(random_state=42, max_iter=1000).fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    print(f"Logistic Regression f_1 score: {f1_score(y_test, y_pred)}")
+    print(f"Logistic Regression Accuracy: {accuracy_score(y_test, y_pred)}")
 
 
 
@@ -146,14 +161,31 @@ def main():
 
     # Get track audio features
     liked_audio_features = get_audio_features(liked_track_ids, token)
-    disliked_audio_features = get_audio_features(disliked_playlist_id, token)
+    disliked_audio_features = get_audio_features(disliked_track_ids, token)
 
     #Convert to dataframe
-    likedDF = pd.DataFrame(liked_audio_features)
-    dilikedDF = pd.DataFrame(disliked_audio_features)
-    print(disliked_audio_features)
+    liked_df = pd.DataFrame(liked_audio_features)
+    disliked_df = pd.DataFrame(disliked_audio_features)
+    
+    # Clean and merge dataframes and create a isLiked column
+    collective_data = clean_merge_features(liked_df, disliked_df)
 
-    #TODO clean and merge dataframes
+
+    collective_data.to_csv("music_df.csv")
+    #VIF for colinear features
+    '''
+    X = collective_data.drop('isLiked', axis=1)
+    vif=pd.DataFrame()
+    vif['feature'] = X.columns
+    vif['VIF'] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+    
+    # Run logistic regression
+    logistic_reg(collective_data)
+    
+    print(vif)
+    '''
+
+
 
 
 
