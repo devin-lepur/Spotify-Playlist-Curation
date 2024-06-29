@@ -5,3 +5,5 @@ seaborn
 sklearn
 matplotlib
 statsmodels
+bs4
+re

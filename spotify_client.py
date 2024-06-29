@@ -1,29 +1,44 @@
+'''
+File: spotify_client.py
+Description: Communicate with Spotify's API
+Author: Devin Lepur
+Date: 05/20/2024
+'''
+
 import os
 import requests
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, accuracy_score
-import seaborn as sns
-import matplotlib.pyplot as plt
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 from dotenv import load_dotenv
+
+from lyrics import get_lyrics
+
 
 
 # Load enviornemnt variables
 load_dotenv()
 
-# Spotify credentials from .env file
+# Get credentials from enviornment variables
 CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 
 # Spotify Accounts service API URL
 TOKEN_URL = 'https://accounts.spotify.com/api/token'
 
-def get_access_token(client_id, client_secret):
-    """
+
+def get_spotify_access_token(client_id, client_secret):
+    """ 
     Get Access token using client credentials flow
+
+    client_id (str): Client ID as provided by Spotify for application
+    client_secret (str): Client Secret as provided by Spotify for application
+
+    Returns:
+    str: Token for authorization
     """
+
     auth_response = requests.post(TOKEN_URL, {
         'grant_type': 'client_credentials',
         'client_id': client_id,
@@ -41,7 +56,14 @@ def get_access_token(client_id, client_secret):
 def get_spotify_data(endpoint, access_token):
     """
     Make a request to the Spotify API
+
+    endpoint (str): URL containing the endpoint for data
+    access_token (str): Access token for Spotify authorization
+
+    Returns
+    JSON: Data fetched from the endpoint
     """
+
     headers = {
         'Authorization': f'Bearer {access_token}'
     }
@@ -59,7 +81,13 @@ def get_spotify_data(endpoint, access_token):
 
 def get_playlist_track_ids(playlist_id, access_token):
     """
-    Get tracks from a Spotify playlist id.
+    Get tracks from a Spotify playlist ID
+
+    playlist_id (str): ID for a given playlist from URL or Spotify request
+    access_token (str): Access token for Spotify authorization
+
+    Returns:
+    list[str]: List of Spotify track IDs
     """
 
     endpoint = f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks'
@@ -71,7 +99,6 @@ def get_playlist_track_ids(playlist_id, access_token):
     while results['next']:
         results = get_spotify_data(results['next'], access_token)
         tracks.extend(results['items'])
-
     # Extract ids
     track_ids = [track['track']['id'] for track in tracks if track['track'] and track['track']['id']]
     return track_ids
@@ -80,8 +107,15 @@ def get_playlist_track_ids(playlist_id, access_token):
 
 def get_audio_features(track_ids, access_token):
     """
-    Get audio features for a list of track IDs.
+    Get audio features for a list of track IDs
+
+    track_ids (list[str]): List of Spotify track ids
+    access_token (str): Access token for Spotify authorization
+
+    Returns:
+    list[dict{str|int}]: One list with dicts for every songs' features
     """
+
     # Spotify limits request to a size of 100
     MAX_BATCH = 100
 
@@ -94,12 +128,14 @@ def get_audio_features(track_ids, access_token):
         response = get_spotify_data(endpoint, access_token)
         audio_features.extend(response.get('audio_features', []))
 
+    
     # Remove any songs without audio features available
     filtered_audio_features = []
     for obj in audio_features:
         if obj != None:
             filtered_audio_features.append(obj)
     
+
     return filtered_audio_features
 
     
@@ -107,7 +143,13 @@ def get_audio_features(track_ids, access_token):
 
 def clean_merge_features(likedDF, dislikedDF):
     """
-    Clean the dataframes provided and return merged dataframe
+    Clean data frames and merge features of liked and disliked dataframes
+
+    likedDF (pd.DataFrame): DataFrame of liked song features to be labeled liked
+    dislikedDF (pd.DataFrame): DataFrame of disliked song features to be labeled disliked
+
+    Returns:
+    pd.DataFrame: DataFrame of merged data with isLiked column
     """
 
     #Create boolean feature; 0: liked, 1: not liked
@@ -132,7 +174,7 @@ def clean_merge_features(likedDF, dislikedDF):
     return mergedDF
 
 
-
+# Probably will get rid of this in a later version
 def logistic_reg(df):
     """
     Train a model to predict whether a song would be liked or not
@@ -147,47 +189,5 @@ def logistic_reg(df):
 
 
 
-def main():
-    # Obtain an access token
-    token = get_access_token(CLIENT_ID, CLIENT_SECRET)
-
-    # Example playlist ID
-    liked_playlist_id = '6kBzzBza7wIPtOykytjABq'
-    disliked_playlist_id = '3caseqKMvJyv2XE1rN6SQi'
-
-    # Get track IDs
-    liked_track_ids = get_playlist_track_ids(liked_playlist_id, token)
-    disliked_track_ids = get_playlist_track_ids(disliked_playlist_id, token)
-
-    # Get track audio features
-    liked_audio_features = get_audio_features(liked_track_ids, token)
-    disliked_audio_features = get_audio_features(disliked_track_ids, token)
-
-    #Convert to dataframe
-    liked_df = pd.DataFrame(liked_audio_features)
-    disliked_df = pd.DataFrame(disliked_audio_features)
-    
-    # Clean and merge dataframes and create a isLiked column
-    collective_data = clean_merge_features(liked_df, disliked_df)
 
 
-    collective_data.to_csv("music_df.csv")
-    #VIF for colinear features
-    '''
-    X = collective_data.drop('isLiked', axis=1)
-    vif=pd.DataFrame()
-    vif['feature'] = X.columns
-    vif['VIF'] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
-    
-    # Run logistic regression
-    logistic_reg(collective_data)
-    
-    print(vif)
-    '''
-
-
-
-
-
-if __name__ == "__main__":
-    main()
