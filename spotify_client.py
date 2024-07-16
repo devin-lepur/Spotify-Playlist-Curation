@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, accuracy_score
+import tqdm
 from dotenv import load_dotenv
 
 from lyrics import get_lyrics
@@ -90,6 +91,9 @@ def get_playlist_track_ids(playlist_id, access_token):
     list[str]: List of Spotify track IDs
     """
 
+    # Output to display where program is at
+    print("Getting playlist track IDs...")
+
     endpoint = f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks'
 
     results = get_spotify_data(endpoint, access_token)
@@ -101,6 +105,9 @@ def get_playlist_track_ids(playlist_id, access_token):
         tracks.extend(results['items'])
     # Extract ids
     track_ids = [track['track']['id'] for track in tracks if track['track'] and track['track']['id']]
+
+    # Confirm completion
+    print("Playlist track IDs fetched.")
     return track_ids
 
 
@@ -113,10 +120,10 @@ def get_audio_features(track_ids, access_token):
     access_token (str): Access token for Spotify authorization
 
     Returns:
-    list[dict{str|int}]: One list with dicts for every songs' features
+    pd.DataFrame: Dataframe of track's audio features as each row
     """
 
-    # Spotify limits request to a size of 100
+    # Spotify limits requests to a size of 100
     MAX_BATCH = 100
 
     # Iterate through batches of 100 and make seperate requests
@@ -128,50 +135,61 @@ def get_audio_features(track_ids, access_token):
         response = get_spotify_data(endpoint, access_token)
         audio_features.extend(response.get('audio_features', []))
 
-    
     # Remove any songs without audio features available
     filtered_audio_features = []
     for obj in audio_features:
         if obj != None:
             filtered_audio_features.append(obj)
+
+    return pd.DataFrame(filtered_audio_features)
+
     
 
-    return filtered_audio_features
-
-    
-
-
-def clean_merge_features(likedDF, dislikedDF):
+def get_title_artist(track_ids, access_token):
     """
-    Clean data frames and merge features of liked and disliked dataframes
-
-    likedDF (pd.DataFrame): DataFrame of liked song features to be labeled liked
-    dislikedDF (pd.DataFrame): DataFrame of disliked song features to be labeled disliked
-
+    Get song title and artist for a given track ID
+    
+    track_ids (list[str]): list of track IDs
+    access_token (str): Access token for Spotify authorization
+    
     Returns:
-    pd.DataFrame: DataFrame of merged data with isLiked column
+    pd.DataFrame: A dataframe of track id, title, and artist
     """
 
-    #Create boolean feature; 0: liked, 1: not liked
-    likedDF['isLiked'] = 1
-    dislikedDF['isLiked'] = 0
+    # Spotify limits requests to a size of 100
+    MAX_BATCH = 50
 
-    #Merge columns and drop second instance of any duplicate, i.e. any duplicates from disliked
-    mergedDF = pd.concat([likedDF, dislikedDF])
-    mergedDF.drop_duplicates(inplace=True)
+    # List to store track info
+    track_info = []
 
-    # Drop useless, non numeric columns and any resulting rows with null values
-    mergedDF.drop(columns=['type', 'id', 'uri', 'track_href', 'analysis_url'], inplace=True)
-    mergedDF.dropna(inplace=True)
+    # Iterate through batches of 100 and make seperate requests
+    for i in range(0, len(track_ids), MAX_BATCH):
+        batch = track_ids[i:i+MAX_BATCH]
+        ids = ','.join(batch)
+        endpoint = f'https://api.spotify.com/v1/tracks?ids={ids}'
+        response = get_spotify_data(endpoint, access_token)
+        tracks = response.get('tracks', [])
 
-    # Convert duration_ms to minutes
-    mergedDF['duration_ms'] = mergedDF['duration_ms'] / 1000 / 60
-    mergedDF.rename(columns={'duration_ms': 'minutes'}, inplace=True)
+        if tracks is None:
+            # Handle the case where 'tracks' is None
+            for track_id in batch:
+                track_info.append({'id': track_id, 'title': None, 'main_artist': None})
+        else:
+            for track in tracks:
+                if track is not None: 
+                    title = track.get('name')
+                    main_artist = track['artists'][0]['name'] if track['artists'] else None
+                    track_id = track.get('id')
+                    track_info.append({'id': track_id, 'title': title, 'main_artist': main_artist})
+                else:
+                    # Handle the case where track is None
+                    track_id = None
+                    track_info.append({'id': track_id, 'title': None, 'main_artist': None})
 
-    # Drop features with VIF > 5
-    mergedDF.drop(columns=['danceability', 'energy', 'loudness', 'valence', 'tempo', 'minutes', 'time_signature'], inplace=True)
+    # Create a DataFrame from the track information
+    df = pd.DataFrame(track_info, columns=['id', 'title', 'main_artist'])
+    return df
 
-    return mergedDF
 
 
 # Probably will get rid of this in a later version
@@ -186,8 +204,3 @@ def logistic_reg(df):
     y_pred = clf.predict(X_test)
     print(f"Logistic Regression f_1 score: {f1_score(y_test, y_pred)}")
     print(f"Logistic Regression Accuracy: {accuracy_score(y_test, y_pred)}")
-
-
-
-
-

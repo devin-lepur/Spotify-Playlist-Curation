@@ -11,12 +11,13 @@ import requests
 import pandas as pd
 from dotenv import load_dotenv
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+import cProfile
+import pstats
 
-from spotify_client import(
-    get_spotify_access_token, get_spotify_data, get_playlist_track_ids, 
-    get_audio_features, clean_merge_features
-    )
+from spotify_client import get_spotify_access_token, get_playlist_track_ids
 from lyrics import get_lyrics
+from data_cleaning import get_track_data, clean_track_data
+from sentiment import append_sentiment
 
 
 # Load enviornment variables
@@ -27,11 +28,17 @@ CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 
 def main():
-    #Example lyric obtaining
-    song = 'good kid'
-    artist = 'Kendrick Lamar'
-    print(get_lyrics(song, artist))
+    # TODO: 
+    #   - Fix insane load time for song_sentiment maybe threading
+    #   - Ensure integretity even when lyrics aren't found
+    #   - Get Speechiness from Spotify
+    #   - Get valance from Spotify
+    #   - Progress bars/reports for certain processes to update user
+    #   - TODO (Later): Explore Positive Unlabeled Machine Learning
 
+    # Commented out for testing purposes
+
+    
     # Obtain an access token
     token = get_spotify_access_token(CLIENT_ID, CLIENT_SECRET)
 
@@ -43,32 +50,26 @@ def main():
     liked_track_ids = get_playlist_track_ids(liked_playlist_id, token)
     disliked_track_ids = get_playlist_track_ids(disliked_playlist_id, token)
 
-    # Get track audio features
-    liked_audio_features = get_audio_features(liked_track_ids, token)
-    disliked_audio_features = get_audio_features(disliked_track_ids, token)
+    # Get audio features with artist and song title
+    liked_track_data = get_track_data(liked_track_ids, token)
+    disliked_track_data = get_track_data(disliked_track_ids, token)
 
-    #Convert to dataframe
-    liked_df = pd.DataFrame(liked_audio_features)
-    disliked_df = pd.DataFrame(disliked_audio_features)
-    
-    # Clean and merge dataframes and create a isLiked column
-    collective_data = clean_merge_features(liked_df, disliked_df)
+    # Create binary isLiked column
+    liked_track_data['isLiked'] = 1
+    disliked_track_data['isLiked'] = 0
 
+    merged_df = pd.concat([liked_track_data, disliked_track_data])
 
-    #VIF for colinear features
-    '''
-    X = collective_data.drop('isLiked', axis=1)
-    vif=pd.DataFrame()
-    vif['feature'] = X.columns
-    vif['VIF'] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
-    
-    # Run logistic regression
-    logistic_reg(collective_data)
-    
-    print(vif)
-    '''
+    merged_df = clean_track_data(merged_df)
 
+    merged_df
 
+    merged_df = append_sentiment(merged_df)
+
+    merged_df.to_csv("tester.csv")
+
+    # TODO create an evaluation data set comprised of about 20% of the train data size 
+    #   that will be seperated from training data and determine truth values for these
 
 if __name__ == "__main__":
     main()

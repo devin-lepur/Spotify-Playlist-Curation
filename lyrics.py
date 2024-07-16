@@ -11,6 +11,8 @@ import requests
 import re
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+import time
+
 
 
 # Load enviornment labels
@@ -49,7 +51,7 @@ def remove_song_labels(text):
     pattern = r'\[.*?\]'
 
     # Replace all occurances of pattern with empty string
-    cleaned_text = re.sub(pattern, '', text)
+    cleaned_text = re.sub(pattern, '', text, flags=re.DOTALL)
 
     # Remove any extra spaces resulting from the removal
     cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
@@ -76,7 +78,23 @@ def get_lyrics(song_title, artist_name):
     # Search for the song
     search_params = {'q': f'{song_title} {artist_name}'}
     response = requests.get(search_url, params=search_params, headers=headers)
-    response_data = response.json()
+
+
+    # Check the status code
+    if response.status_code != 200:
+        print(f"Error: Received status code {response.status_code}")
+        retry_after = int(response.headers.get("Retry-After", 60))
+        print(f"Rate limit hit. Retry after {retry_after} seconds.")
+
+
+        return None
+    
+    try:
+        response_data = response.json()
+    except requests.exceptions.JSONDecodeError:
+        print("Error: JSONDecodeError - Response content is not valid JSON")
+        print("Response content:", response.text)
+        return None
     
     # Check if there were results
     if response_data['response']['hits']:
@@ -99,7 +117,6 @@ def get_lyrics(song_title, artist_name):
         if lyrics_texts:
             return remove_song_labels("\n".join(lyrics_texts).strip())
         
-        return "Lyrics not found or page structure has changed"
+        return "Lyrics not found"
     else:
         return "Song not found"
-    
