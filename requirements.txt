@@ -1,9 +1,7 @@
+pandas
 requests
 python-dotenv
-pandas
-seaborn
-sklearn
-matplotlib
-statsmodels
-bs4
-re
+numpy
+scikit-learn
+vaderSentiment
+tqdm
