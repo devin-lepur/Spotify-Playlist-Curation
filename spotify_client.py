@@ -13,7 +13,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, accuracy_score
 import tqdm
 from dotenv import load_dotenv
-
 from lyrics import get_lyrics
 
 
@@ -68,7 +67,10 @@ def get_spotify_data(endpoint, access_token):
     headers = {
         'Authorization': f'Bearer {access_token}'
     }
-    response = requests.get(endpoint, headers=headers)
+    params = {
+        'market': 'US'
+    }
+    response = requests.get(endpoint, headers=headers, params=params)
 
     # If unsucessful print status code, content, and raise exception
     if response.status_code != 200:
@@ -156,13 +158,13 @@ def get_title_artist(track_ids, access_token):
     pd.DataFrame: A dataframe of track id, title, and artist
     """
 
-    # Spotify limits requests to a size of 100
+    # Spotify limits requests to a size of 50
     MAX_BATCH = 50
 
     # List to store track info
     track_info = []
 
-    # Iterate through batches of 100 and make seperate requests
+    # Iterate through batches of 50 and make seperate requests
     for i in range(0, len(track_ids), MAX_BATCH):
         batch = track_ids[i:i+MAX_BATCH]
         ids = ','.join(batch)
@@ -173,34 +175,34 @@ def get_title_artist(track_ids, access_token):
         if tracks is None:
             # Handle the case where 'tracks' is None
             for track_id in batch:
-                track_info.append({'id': track_id, 'title': None, 'main_artist': None})
+                track_info.append({'id': track_id, 'title': None, 'main_artist': None, 
+                                       'popularity': None, 'release_date': None})
         else:
             for track in tracks:
                 if track is not None: 
+                    # Fetch features for each track
                     title = track.get('name')
                     main_artist = track['artists'][0]['name'] if track['artists'] else None
                     track_id = track.get('id')
-                    track_info.append({'id': track_id, 'title': title, 'main_artist': main_artist})
+                    popularity = track.get('popularity')
+                    release_date = track.get('album',{}).get('release_date')
+
+                    # Create dict for each track and store in list
+                    track_info.append({
+                        'id': track_id, 
+                        'title': title, 
+                        'main_artist': main_artist, 
+                        'popularity': popularity,
+                        'release_date': release_date
+                        })
                 else:
                     # Handle the case where track is None
-                    track_id = None
-                    track_info.append({'id': track_id, 'title': None, 'main_artist': None})
+                    track_info.append({'id': track_id, 'title': None, 'main_artist': None, 
+                                       'popularity': None, 'release_date': None})
 
-    # Create a DataFrame from the track information
-    df = pd.DataFrame(track_info, columns=['id', 'title', 'main_artist'])
+    # Convert list of dicts to DataFrame with column names
+    df = pd.DataFrame(track_info, columns=['id', 'title', 'main_artist', 'popularity', 'release_date'])
     return df
 
 
 
-# Probably will get rid of this in a later version
-def logistic_reg(df):
-    """
-    Train a model to predict whether a song would be liked or not
-    """
-    X = df.drop('isLiked', axis=1)
-    y = df['isLiked']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-    clf = LogisticRegression(random_state=42, max_iter=1000).fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    print(f"Logistic Regression f_1 score: {f1_score(y_test, y_pred)}")
-    print(f"Logistic Regression Accuracy: {accuracy_score(y_test, y_pred)}")

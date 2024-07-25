@@ -1,6 +1,6 @@
 '''
 File: main.py
-Description: Communicate with Genius API to extract and clean song lyrics
+Description: Generate a lsit of songs for a user to try based off Spotify playlists
 Author: Devin Lepur
 Date: 06/28/2024
 '''
@@ -9,15 +9,17 @@ Date: 06/28/2024
 import os
 import requests
 import pandas as pd
+import numpy as np
 from dotenv import load_dotenv
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 import cProfile
 import pstats
+from sklearn.model_selection import train_test_split
 
 from spotify_client import get_spotify_access_token, get_playlist_track_ids
 from lyrics import get_lyrics
 from data_cleaning import get_track_data, clean_track_data
 from sentiment import append_sentiment
+from model_generation import get_user_model
 
 
 # Load enviornment variables
@@ -28,48 +30,57 @@ CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 
 def main():
-    # TODO: 
-    #   - Fix insane load time for song_sentiment maybe threading
-    #   - Ensure integretity even when lyrics aren't found
-    #   - Get Speechiness from Spotify
-    #   - Get valance from Spotify
-    #   - Progress bars/reports for certain processes to update user
-    #   - TODO (Later): Explore Positive Unlabeled Machine Learning
 
-    # Commented out for testing purposes
-
-    
     # Obtain an access token
     token = get_spotify_access_token(CLIENT_ID, CLIENT_SECRET)
 
     # Example playlist ID
-    liked_playlist_id = '6kBzzBza7wIPtOykytjABq'
-    disliked_playlist_id = '3caseqKMvJyv2XE1rN6SQi'
+    target_playlist_id = '29x0oUUDwrgdg2FAwDovzr'       # "Hardest" rap
+    unknown_playlist_id = '7x0UDYDd2MWVkBEGGyPZbm'      # 500 biggest songs oat
 
     # Get track IDs
-    liked_track_ids = get_playlist_track_ids(liked_playlist_id, token)
-    disliked_track_ids = get_playlist_track_ids(disliked_playlist_id, token)
+    target_track_ids = get_playlist_track_ids(target_playlist_id, token)
+    unknown_track_ids = get_playlist_track_ids(unknown_playlist_id, token)
 
-    # Get audio features with artist and song title
-    liked_track_data = get_track_data(liked_track_ids, token)
-    disliked_track_data = get_track_data(disliked_track_ids, token)
+    # Get audio features and artist, song title, popularity
+    target_track_data = get_track_data(target_track_ids, token)
+    unknown_track_data = get_track_data(unknown_track_ids, token)
 
-    # Create binary isLiked column
-    liked_track_data['isLiked'] = 1
-    disliked_track_data['isLiked'] = 0
+    # Create binary istarget column
+    target_track_data['is_target'] = 1
+    unknown_track_data['is_target'] = 0
 
-    merged_df = pd.concat([liked_track_data, disliked_track_data])
-
+    # Combine and clean data
+    merged_df = pd.concat([target_track_data, unknown_track_data])
     merged_df = clean_track_data(merged_df)
 
-    merged_df
-
+    # Get lyric sentiment
     merged_df = append_sentiment(merged_df)
 
-    merged_df.to_csv("tester.csv")
+    # TESTING ONLY
+    merged_df = pd.read_csv("tester.csv")
 
-    # TODO create an evaluation data set comprised of about 20% of the train data size 
-    #   that will be seperated from training data and determine truth values for these
+    # Train model
+    train, test = train_test_split(merged_df, test_size=0.2, random_state=42)
+    model, features = get_user_model(train)
+    print("Features used:", np.array(features))
+
+    # Filter test set by features used in the model
+    filtered_test = test.loc[:, features]
+    X_test = filtered_test.drop(columns=['is_target'])
+
+    # Predict song classification
+    y_pred = model.predict(X_test)
+
+    # Create a new column for predictions on the test set
+    test = test.copy()
+    test['pred_label'] = y_pred
+
+    # Print test cases where is_target is 0 and pred_label is 1
+    for index, song in test.iterrows():
+        if (song['is_target'] == 0) and (song['pred_label'] == 1):
+            print(f"Try this song: {song['title']}, by: {song['main_artist']}")
+
 
 if __name__ == "__main__":
     main()

@@ -37,14 +37,13 @@ def append_sentiment(df):
     print("Appending sentiment...")
 
 
-    # Create columns to fill information with default value NaN
-    df['neg'] = 'NaN'
-    df['neu'] = 'NaN'
-    df['pos'] = 'NaN'
-    df['compound'] = 'NaN'
+    # Create columns to fill information with default value None
+    df['neg'] = None
+    df['neu'] = None
+    df['pos'] = None
+    df['compound'] = None
 
     sentiment_analyzer = SentimentAnalyzer()
-
 
     # function to process each row
     def process_row(idx, track):
@@ -67,13 +66,3 @@ def append_sentiment(df):
 
     print("Sentiment appended.")
     return df
-
-
-# Thread performance:
-# 960: no progress achieved
-# 240: 5s/iter
-# 480: 7s+/iter
-# 120: 2-3s/iter
-# 40: 31 iter/min
-# 10: 30 iter/min
-# Default: 31 iter/min

@@ -9,7 +9,6 @@ Date: 06/28/2024
 import os
 import requests
 import re
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import time
 
@@ -85,8 +84,6 @@ def get_lyrics(song_title, artist_name):
         print(f"Error: Received status code {response.status_code}")
         retry_after = int(response.headers.get("Retry-After", 60))
         print(f"Rate limit hit. Retry after {retry_after} seconds.")
-
-
         return None
     
     try:
