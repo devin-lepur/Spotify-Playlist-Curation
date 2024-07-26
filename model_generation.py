@@ -12,7 +12,6 @@ from data_cleaning import clean_features
 from imblearn.over_sampling import SMOTE
 from datetime import datetime
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score
 
 def get_important_features(model, columns):
     """
@@ -115,3 +114,27 @@ def get_user_model(df):
 
     return model, filtered_df.columns
 
+
+
+merged_df = pd.read_csv("tester.csv")
+
+# Train model
+train, test = train_test_split(merged_df, test_size=0.2, random_state=42)
+model, features = get_user_model(train)
+print("Features used:", np.array(features))
+
+# Filter test set by features used in the model
+filtered_test = test.loc[:, features]
+X_test = filtered_test.drop(columns=['is_target'])
+
+# Predict song classification
+y_pred = model.predict(X_test)
+
+# Create a new column for predictions on the test set
+test = test.copy()
+test['pred_label'] = y_pred
+
+# Print test cases where is_target is 0 and pred_label is 1
+for index, song in test.iterrows():
+    if (song['is_target'] == 0) and (song['pred_label'] == 1):
+        print(f"Try this song: {song['title']}, by: {song['main_artist']}")

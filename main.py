@@ -7,12 +7,9 @@ Date: 06/28/2024
 
 
 import os
-import requests
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
-import cProfile
-import pstats
 from sklearn.model_selection import train_test_split
 
 from spotify_client import get_spotify_access_token, get_playlist_track_ids
@@ -56,9 +53,6 @@ def main():
 
     # Get lyric sentiment
     merged_df = append_sentiment(merged_df)
-
-    # TESTING ONLY
-    merged_df = pd.read_csv("tester.csv")
 
     # Train model
     train, test = train_test_split(merged_df, test_size=0.2, random_state=42)

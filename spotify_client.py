@@ -8,12 +8,7 @@ Date: 05/20/2024
 import os
 import requests
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score, accuracy_score
-import tqdm
 from dotenv import load_dotenv
-from lyrics import get_lyrics
 
 
 
