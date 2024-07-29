@@ -9,7 +9,6 @@ import pandas as pd
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
 from lyrics import get_lyrics
 
 
@@ -64,5 +63,7 @@ def append_sentiment(df):
             df.at[idx, 'compound'] = sentiment_scores['compound']
             continue
 
+    df['neg'] = df['neg'].astype(float)
+    df['pos'] = df['pos'].astype(float)
     print("Sentiment appended.")
     return df

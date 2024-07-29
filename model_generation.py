@@ -49,6 +49,7 @@ def create_model(df):
     # Threshold for reliable negatives
     NEG_THRESHOLD = 0.2
 
+    # Separate features and target
     X = df.drop(columns=['is_target'])
     y = df['is_target']
 
@@ -61,16 +62,16 @@ def create_model(df):
     # Get probability of sample being positive
     y_pred_proba = clf.predict_proba(X)
 
-    # Get reliable negatives
-    reliable_negatives = X[y_pred_proba[:, 0] < NEG_THRESHOLD]
+    # Get reliable negatives with a probability of being positive <= NEG_THRESHOLD
+    reliable_negatives = X[y_pred_proba[:, 1] <= NEG_THRESHOLD]
     reliable_negative_labels = np.zeros(reliable_negatives.shape[0])
 
     # Get data where is_target == 1
-    positive_samples = df.loc[X.index][df['is_target'] == 1].drop(columns=['is_target'])
+    positive_samples = df[df['is_target'] == 1].drop(columns=['is_target'])
     positive_labels = np.ones(positive_samples.shape[0])
 
     # Merge positives and negatives
-    X_merged = pd.concat([positive_samples, reliable_negatives])
+    X_merged = pd.concat([positive_samples, reliable_negatives], ignore_index=True)
     y_merged = np.concatenate([positive_labels, reliable_negative_labels])
 
     # Oversample minority class using SMOTE

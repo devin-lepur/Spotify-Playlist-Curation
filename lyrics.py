@@ -10,6 +10,7 @@ import os
 import requests
 import re
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 import time
 
 

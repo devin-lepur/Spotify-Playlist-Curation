@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
 
 from spotify_client import get_spotify_access_token, get_playlist_track_ids
 from lyrics import get_lyrics
@@ -54,6 +55,7 @@ def main():
     # Get lyric sentiment
     merged_df = append_sentiment(merged_df)
 
+
     # Train model
     train, test = train_test_split(merged_df, test_size=0.2, random_state=42)
     model, features = get_user_model(train)
@@ -70,10 +72,18 @@ def main():
     test = test.copy()
     test['pred_label'] = y_pred
 
+    # Export predictions to csv
+    test.to_csv("predictions.csv", index=False)
+
     # Print test cases where is_target is 0 and pred_label is 1
     for index, song in test.iterrows():
         if (song['is_target'] == 0) and (song['pred_label'] == 1):
             print(f"Try this song: {song['title']}, by: {song['main_artist']}")
+    
+    # Compute f1 score
+    true_labels = test['is_target']
+    pred_labels = test['pred_label']
+    print(f1_score(true_labels, pred_labels))
 
 
 if __name__ == "__main__":
