@@ -85,7 +85,7 @@ def get_lyrics(song_title, artist_name):
         print(f"Error: Received status code {response.status_code}")
         retry_after = int(response.headers.get("Retry-After", 60))
         print(f"Rate limit hit. Retry after {retry_after} seconds.")
-        return None
+        return "No lyrics Found"
     
     try:
         response_data = response.json()

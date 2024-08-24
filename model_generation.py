@@ -54,11 +54,11 @@ def create_model(df):
     y_merged = np.concatenate([positive_labels, reliable_negative_labels])
 
     # Oversample minority class using SMOTE
-    #smote = SMOTE(sampling_strategy='minority')
-    #X_over, y_over = smote.fit_resample(X_merged, y_merged)
+    smote = SMOTE(sampling_strategy='minority')
+    X_over, y_over = smote.fit_resample(X_merged, y_merged)
 
     # Retrain classifier
-    clf.fit(X_merged, y_merged)
+    clf.fit(X_over, y_over)
 
     return clf
 

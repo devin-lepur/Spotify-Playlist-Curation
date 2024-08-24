@@ -28,13 +28,13 @@ CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 
 def main():
-
+    
     # Obtain an access token
     token = get_spotify_access_token(CLIENT_ID, CLIENT_SECRET)
 
     # Example playlist ID
-    target_playlist_id = '29x0oUUDwrgdg2FAwDovzr'       # "Hardest" rap
-    unknown_playlist_id = '7x0UDYDd2MWVkBEGGyPZbm'      # 500 biggest songs oat
+    target_playlist_id = '37i9dQZF1DWTl4y3vgJOXW'       # Example target playlist "Locked In" by Spotify
+    unknown_playlist_id = '7x0UDYDd2MWVkBEGGyPZbm'      # Example unkown playlsit "Biggest Songs of All Time Top500" by olaf_aarts
 
     # Get track IDs
     target_track_ids = get_playlist_track_ids(target_playlist_id, token)
@@ -56,8 +56,9 @@ def main():
     merged_df = append_sentiment(merged_df)
 
 
+
     # Train model
-    train, test = train_test_split(merged_df, test_size=0.2, random_state=42)
+    train, test = train_test_split(merged_df, test_size=0.20, random_state=42)
     model, features = get_user_model(train)
     print("Features used:", np.array(features))
 
@@ -72,18 +73,11 @@ def main():
     test = test.copy()
     test['pred_label'] = y_pred
 
-    # Export predictions to csv
-    test.to_csv("predictions.csv", index=False)
-
     # Print test cases where is_target is 0 and pred_label is 1
     for index, song in test.iterrows():
         if (song['is_target'] == 0) and (song['pred_label'] == 1):
             print(f"Try this song: {song['title']}, by: {song['main_artist']}")
     
-    # Compute f1 score
-    true_labels = test['is_target']
-    pred_labels = test['pred_label']
-    print(f1_score(true_labels, pred_labels))
 
 
 if __name__ == "__main__":
